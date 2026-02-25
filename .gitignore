@@ -13,6 +13,7 @@ env/
 # Environment / secrets
 .env
 .env.*
+!.env.example
 
 # Local database
 hr_portal.db

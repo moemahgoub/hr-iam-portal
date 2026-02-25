@@ -1,0 +1,92 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<h1 class="title">Dashboard</h1>
+<p class="subtitle">Manage onboarding and offboarding requests across HR and IT.</p>
+<div style="display:flex; gap:10px; flex-wrap:wrap; margin: 10px 0 18px;">
+  {% if pending_approvals is not none %}
+    <span class="pill">Pending approvals: <strong style="color:var(--text); margin-left:6px;">{{ pending_approvals }}</strong></span>
+  {% endif %}
+
+  {% if it_queue_count is not none %}
+    <span class="pill">IT queue: <strong style="color:var(--text); margin-left:6px;">{{ it_queue_count }}</strong></span>
+  {% endif %}
+</div>
+
+<style>
+  .action-grid{
+    display:grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap:14px;
+  }
+  .action-card{ grid-column: span 8; }
+  .role-card{ grid-column: span 4; }
+
+  @media (max-width: 900px){
+    .action-card, .role-card{ grid-column: span 12; }
+  }
+
+  .actions{
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-top:12px;
+  }
+  .btn-soft{
+    border-color: rgba(96,165,250,.35);
+    background: rgba(96,165,250,.12);
+  }
+  .btn-soft:hover{
+    background: rgba(96,165,250,.18);
+  }
+</style>
+
+<div class="card">
+  <div class="action-grid">
+    <!-- Quick actions -->
+    <div class="action-card">
+      <div class="pill">Quick actions</div>
+
+      <div class="actions">
+        <a class="btn btn-soft" href="/requests">View requests</a>
+
+        {% if "HR.Requester" in me_roles(request) %}
+          <a class="btn btn-primary" href="/requests/new">Create request</a>
+        {% endif %}
+
+        {% if "HR.Approver" in me_roles(request) %}
+          <a class="btn btn-soft" href="/requests?status=submitted">Pending approvals</a>
+        {% endif %}
+
+        {% if "IT.Clearance" in me_roles(request) %}
+          <a class="btn btn-soft" href="/it/requests">IT queue</a>
+        {% endif %}
+      </div>
+
+      <div class="hr"></div>
+
+      <div class="muted">
+        Tip: use <strong>Requests</strong> to track progress. Approvers use <strong>Pending approvals</strong>. IT uses <strong>IT queue</strong>.
+      </div>
+    </div>
+
+    <!-- Roles -->
+    <div class="role-card">
+      <div class="pill">Your access</div>
+      <div class="hr"></div>
+
+      {% set roles = me_roles(request) %}
+      {% if roles and roles|length > 0 %}
+        <ul style="margin:0; padding-left:18px;">
+          {% for r in roles %}
+            <li>{{ r }}</li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <div class="muted">No roles found.</div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+{% endblock %}

@@ -1,0 +1,18 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="card" style="max-width:720px;">
+  <h2 style="margin:0 0 6px 0;">{{ title or "Access denied" }}</h2>
+
+  <p class="muted" style="margin:0 0 14px 0;">
+    {{ message or "You do not have access to this page." }}
+  </p>
+
+  <div style="display:flex; gap:10px; flex-wrap:wrap;">
+    <a class="btn btn-primary" href="/requests">Go to Requests</a>
+    <a class="btn" href="/">Go to Home</a>
+  </div>
+</div>
+
+{% endblock %}
+	

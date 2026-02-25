@@ -1,0 +1,61 @@
+{# templates/confirm_duplicate_name.html #}
+{% extends "layout.html" %}
+{% block content %}
+
+<style>
+  .cardx{
+    border:1px solid rgba(255,255,255,.10);
+    border-radius:18px;
+    background: rgba(255,255,255,.04);
+    padding:16px;
+    max-width: 760px;
+  }
+  .title { margin:0; font-size:24px; letter-spacing:-.02em; }
+  .muted { opacity:.78; }
+  .actions{ display:flex; gap:10px; flex-wrap:wrap; margin-top:14px; }
+  .btnx{
+    display:inline-flex; align-items:center; justify-content:center;
+    padding:10px 14px;
+    border-radius:12px;
+    border:1px solid rgba(255,255,255,.14);
+    background: rgba(255,255,255,.06);
+    font-weight:900;
+    cursor:pointer;
+  }
+  .btnx:hover{ background: rgba(255,255,255,.10); }
+  .primary{
+    border-color: rgba(96,165,250,.45);
+    background: rgba(96,165,250,.16);
+  }
+  .primary:hover{ background: rgba(96,165,250,.24); }
+</style>
+
+<div class="cardx">
+  <h1 class="title">Confirm duplicate name</h1>
+
+  <p class="muted" style="margin-top:8px;">
+    A recent onboarding request with the same name was found:
+    <b>{{ display_name }}</b>
+  </p>
+
+  <p class="muted" style="margin-top:8px;">
+    Existing request: <a class="btn" href="/requests/{{ dup_req_id }}">View #{{ dup_req_id }}</a>
+  </p>
+
+  <p class="muted" style="margin-top:8px;">
+    If this is a <b>new employee with the same name</b>, click Continue.
+    The system will auto-fix the UPN if needed (jbrown2@..., jbrown3@...).
+  </p>
+
+  <div class="actions">
+    <form method="post" action="/requests/{{ req_id }}/approve">
+      <input type="hidden" name="csrf" value="{{ csrf_token(request) }}">
+      <input type="hidden" name="confirm_same_name" value="1">
+      <button class="btnx primary" type="submit">Continue and approve</button>
+    </form>
+
+    <a class="btnx" href="/requests/{{ req_id }}">Cancel</a>
+  </div>
+</div>
+
+{% endblock %}

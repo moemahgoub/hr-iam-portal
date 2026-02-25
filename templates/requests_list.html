@@ -1,0 +1,200 @@
+{% extends "layout.html" %}
+{% block content %}
+
+{% set roles = me_roles(request) %}
+{% set status = status|default('') %}
+{% set mine = mine|default(0) %}
+
+<style>
+  table.req {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 14px;
+    overflow: hidden;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: rgba(255,255,255,.03);
+  }
+  table.req th, table.req td {
+    text-align: left;
+    padding: 12px 12px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: middle;
+    font-size: 14px;
+  }
+  table.req th { color: rgba(229,231,235,.9); font-weight: 700; }
+  table.req td { color: rgba(229,231,235,.95); }
+  table.req tr:last-child td { border-bottom: none; }
+
+  .status {
+    display:inline-flex;
+    align-items:center;
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    font-size: 12px;
+    letter-spacing: .2px;
+    background: rgba(255,255,255,.04);
+    color: var(--text);
+    white-space: nowrap;
+  }
+  .s-submitted{ border-color: rgba(255,213,158,.45); background: rgba(255,213,158,.10); }
+  .s-itpending{ border-color: rgba(96,165,250,.45); background: rgba(96,165,250,.12); }
+  .s-executed{ border-color: rgba(34,197,94,.45); background: rgba(34,197,94,.10); }
+  .s-failed{ border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.10); }
+  .s-rejected{ border-color: rgba(239,68,68,.45); background: rgba(239,68,68,.10); }
+
+  .truncate {
+    max-width: 220px;
+    display: inline-block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    vertical-align: bottom;
+  }
+
+  .tabs {
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+    margin-top: 14px;
+  }
+  .tab {
+    display:inline-flex;
+    align-items:center;
+    gap:8px;
+    padding: 8px 12px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: rgba(17,24,39,.35);
+    color: var(--text);
+    font-size: 13px;
+    text-decoration:none;
+  }
+  .tab:hover { background: rgba(17,24,39,.55); text-decoration:none; }
+  .tab.active { border-color: rgba(96,165,250,.55); background: rgba(96,165,250,.16); font-weight: 800; }
+
+  .toprow {
+    display:flex;
+    align-items:flex-start;
+    justify-content:space-between;
+    gap:12px;
+  }
+  .small-muted { color: var(--muted); font-size: 13px; }
+
+  .table-wrap { width: 100%; overflow-x: auto; margin-top: 10px; }
+  .table-wrap::-webkit-scrollbar { height: 10px; }
+  .table-wrap::-webkit-scrollbar-thumb { background: rgba(148,163,184,.25); border-radius: 999px; }
+</style>
+
+{% macro friendly_actor_name(v) %}
+  {% set raw = (v or "").split("@")[0] %}
+  {% if not raw %}
+    —
+  {% elif raw.startswith("hr.requester") %}
+    HR Requester {{ raw.replace("hr.requester", "") }}
+  {% elif raw.startswith("hr.approver") %}
+    HR Approver {{ raw.replace("hr.approver", "") }}
+  {% elif raw.startswith("it.clearance") %}
+    IT Clearance {{ raw.replace("it.clearance", "") }}
+  {% else %}
+    {{ raw | replace(".", " ") | replace("_", " ") | title }}
+  {% endif %}
+{% endmacro %}
+
+<div class="card">
+  <div class="toprow">
+    <div>
+      <h2 style="margin:0;">Requests</h2>
+      <div class="small-muted" style="margin-top:6px;">
+        Track onboarding/offboarding workflow (HR approval → IT clearance).
+      </div>
+    </div>
+
+    {% if "HR.Requester" in roles %}
+      <a class="btn btn-primary" href="/requests/new">Create request</a>
+    {% endif %}
+  </div>
+
+  <!-- Tabs / Filters -->
+  <div class="tabs">
+    <a class="tab {% if status == '' and (mine|int) != 1 %}active{% endif %}" href="/requests">All</a>
+
+    {% if "HR.Approver" in roles %}
+      <a class="tab {% if status == 'submitted' %}active{% endif %}" href="/requests?status=submitted">
+        Pending HR approval
+      </a>
+    {% endif %}
+
+    {% if "IT.Clearance" in roles %}
+      <a class="tab {% if status == 'it_pending' %}active{% endif %}" href="/requests?status=it_pending">
+        IT pending
+      </a>
+    {% endif %}
+
+    <a class="tab {% if status == 'executed' %}active{% endif %}" href="/requests?status=executed">Executed</a>
+    <a class="tab {% if status == 'failed' %}active{% endif %}" href="/requests?status=failed">Failed</a>
+
+    {% if "HR.Requester" in roles %}
+      <a class="tab {% if (mine|int) == 1 %}active{% endif %}" href="/requests?mine=1">My requests</a>
+    {% endif %}
+  </div>
+
+  <div class="table-wrap">
+    <table class="req">
+      <tr>
+        <th style="width:70px;">ID</th>
+        <th style="width:110px;">Type</th>
+        <th style="width:160px;">Status</th>
+        <th style="min-width:220px;">Created</th>
+        <th style="width:120px;"></th>
+      </tr>
+
+      {% for r in rows %}
+      <tr>
+        <td><strong>#{{ r["id"] }}</strong></td>
+
+        <td style="text-transform:capitalize;">{{ r["type"] }}</td>
+
+        <td>
+          {% set s = r["status"] %}
+          {% if s == "submitted" %}
+            <span class="status s-submitted">Submitted</span>
+          {% elif s == "it_pending" %}
+            <span class="status s-itpending">IT pending</span>
+          {% elif s == "rejected" %}
+            <span class="status s-rejected">Rejected</span>
+          {% elif s == "executed" %}
+            <span class="status s-executed">Executed</span>
+          {% elif s == "failed" %}
+            <span class="status s-failed">Failed</span>
+          {% else %}
+            <span class="status">{{ s }}</span>
+          {% endif %}
+        </td>
+
+        <td>
+          <div style="font-weight:700;">
+            <span class="truncate" title="{{ r['created_by'] or '' }}">
+              {{ friendly_actor_name(r["created_by"]) }}
+            </span>
+          </div>
+          <div class="small-muted" style="margin-top:4px;">
+            {{ fmt_dt(r["created_at"]) }}
+          </div>
+        </td>
+
+        <td style="text-align:right;">
+          <a class="btn" href="/requests/{{ r['id'] }}">View</a>
+        </td>
+      </tr>
+      {% endfor %}
+    </table>
+  </div>
+
+  {% if rows|length == 0 %}
+    <div class="small-muted" style="margin-top:12px;">No requests found for this filter.</div>
+  {% endif %}
+</div>
+
+{% endblock %}

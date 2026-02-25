@@ -1,0 +1,16 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<div class="card" style="max-width:720px;">
+  <h2 style="margin:0 0 6px 0;">Sign in</h2>
+  <p class="muted" style="margin:0 0 14px 0;">
+    {{ message or "Please sign in to continue." }}
+  </p>
+
+  <div style="display:flex; gap:10px; flex-wrap:wrap;">
+    <a class="btn btn-primary" href="/login">Sign in with Microsoft</a>
+    <a class="btn" href="/">Go to Home</a>
+  </div>
+</div>
+
+{% endblock %}

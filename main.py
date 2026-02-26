@@ -100,6 +100,9 @@ app.add_middleware(
     max_age=1800,  # 30 minutes
     session_cookie="hr_portal_session",
 )
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
 
 # Database init
 init_db(db_path=DATABASE_PATH) if "db_path" in init_db.__code__.co_varnames else init_db()
@@ -381,6 +384,8 @@ def generate_temp_password() -> str:
     In real production, deliver securely to the user.
     """
     return secrets.token_urlsafe(12) + "!"
+
+
 
 
 # ------------------------------------------------------------

@@ -1,11 +1,10 @@
-```gitignore
 # Python
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 
-# Virtual environment
+# Virtual environments
 .venv/
 venv/
 env/
@@ -15,9 +14,10 @@ env/
 .env.*
 !.env.example
 
-# Local database
-hr_portal.db
+# Databases
 *.db
+*.sqlite
+*.sqlite3
 
 # Logs
 *.log
@@ -34,6 +34,7 @@ Thumbs.db
 .pytest_cache/
 .mypy_cache/
 .cache/
+.coverage
 
 # Build artifacts
 dist/

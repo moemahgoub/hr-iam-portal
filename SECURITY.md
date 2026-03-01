@@ -1,7 +1,8 @@
 # Security Policy
 
-## Supported Versions
-This is an educational/demo project. It is provided "as-is" without warranties.
+## Disclaimer
+This project is for educational/demo use only. It is provided "as-is" without warranties.  
+Do not use it as-is in production. Review security, permissions, and secrets handling before any real deployment.
 
 ## Reporting a Vulnerability
 If you find a security issue, please do not open a public GitHub Issue.

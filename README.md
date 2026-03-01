@@ -6,6 +6,10 @@ It demonstrates a secure HR-to-IT workflow with role-based approvals and Microso
 
 ---
 
+## Disclaimer
+This project is for educational/demo use only. It is provided "as-is" without warranties.  
+Do not use it as-is in production. Review security, permissions, and secrets handling before any real deployment.
+
 ## What the app does
 
 ### Onboarding

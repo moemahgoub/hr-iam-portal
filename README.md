@@ -411,8 +411,8 @@ sudo journalctl -u hr-iam-portal -n 200 --no-pager
 
 ## Documentation
 - `docs/runbook.md` — operations + failover
-- `docs/screenshots/` — Azure + Entra screenshots (scrubbed / generic)
-- `docs/entra-graph-permissions.md` — Graph permissions used by your implementation
+- `docs/screenshots/` — Azure + Entra screenshots 
+- `docs/entra-graph-permissions.md` — Graph permissions 
 
 ---
 

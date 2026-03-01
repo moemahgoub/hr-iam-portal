@@ -2,30 +2,30 @@
 
 HR IAM Portal is an internal workflow application for employee onboarding and offboarding requests.
 
-It demonstrates a secure HR-to-IT workflow with role-based approvals and Microsoft Entra ID / Microsoft Graph integration.
+It demonstrates a secure HR-to-IT workflow with role-based approvals and Microsoft Entra ID sign-in, plus Microsoft Graph automation for provisioning and offboarding.
 
 ---
 
 ## What the app does
 
 ### Onboarding
-- HR Requester creates onboarding request
+- HR Requester creates an onboarding request
 - HR Approver approves or rejects
 - IT Clearance executes provisioning
-- App creates user account in Microsoft Entra ID
+- The app can create a user account in Microsoft Entra ID (via Microsoft Graph) **when the provisioning app is configured**
 
 ### Offboarding
-- HR Requester creates offboarding request
+- HR Requester creates an offboarding request
 - HR Approver approves or rejects
 - IT Clearance executes offboarding
-- App disables user account and revokes sign-in sessions
+- The app can disable the user account and revoke sign-in sessions (via Microsoft Graph) **when the provisioning app is configured**
 
 ---
 
 ## Key features
 - Role-based access (HR.Requester / HR.Approver / IT.Clearance / HR.Auditor optional)
 - Approval and rejection workflow
-- Microsoft Entra ID sign-in (OAuth)
+- Microsoft Entra ID sign-in (OAuth 2.0 / OpenID Connect)
 - Microsoft Graph integration (provisioning and offboarding)
 - Audit logging + export
 - CSRF protection
@@ -38,15 +38,24 @@ It demonstrates a secure HR-to-IT workflow with role-based approvals and Microso
 - FastAPI
 - Microsoft Entra ID (authentication)
 - Microsoft Graph API
-- SQLite (current local database)
+- SQLite (local database for demo)
 
 ---
 
 ## Project status
 - Local application working
-- Tenant integration completed
-- Onboarding tested
-- Offboarding tested
+- Entra integration tested
+- Onboarding flow tested
+- Offboarding flow tested
+
+---
+
+## Repository layout (high level)
+- `main.py` — FastAPI app (routes, auth flow, workflow)
+- `graph_client.py` — Graph client helpers (app-only token + calls)
+- `config.py` — configuration loader (reads environment variables)
+- `templates/` — UI templates
+- `docs/` — runbook and screenshots
 
 ---
 
@@ -76,46 +85,81 @@ python -m venv .venv
 Copy `.env.example` to `.env` and set real values.
 
 Important:
-- Do not commit `.env`
-- Do not commit SQLite database files (example: `*.db`)
+- Never commit `.env`
+- Never commit SQLite database files (example: `*.db`)
 
 ### 5) Run locally
 ```bash
 uvicorn main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Open:
-- App: `http://127.0.0.1:8000`
-- OAuth callback route used by this project: `http://localhost:8000/auth/callback`
+Open the app:
+- `http://127.0.0.1:8000`
+
+OAuth callback used by this project:
+- `http://localhost:8000/auth/callback`
+
+Note:
+- Redirect URIs must match exactly in Entra.
+- If you register `localhost`, use `localhost` in the browser for sign-in flows.
 
 ---
 
-## Microsoft Entra ID setup (Portal)
+## Environment variables
+
+The app uses `.env` locally (loaded at startup). Example placeholders are in `.env.example`.
+
+### Portal app (interactive login)
+- `TENANT_ID` — Entra tenant (Directory) ID
+- `CLIENT_ID` — Portal app (client) ID
+- `CLIENT_SECRET` — Portal app secret
+- `REDIRECT_URI` — callback URL (example: `http://localhost:8000/auth/callback`)
+- `SESSION_SECRET` — random secret used to sign session cookies
+- `DATABASE_PATH` — SQLite db file path (example: `hr_portal.db`)
+
+### Provisioning app (automation identity)
+Used only if you enable Graph provisioning/offboarding features.
+
+- `PROV_TENANT_ID` — Entra tenant (Directory) ID
+- `PROV_CLIENT_ID` — Provisioning app (client) ID
+- `PROV_CLIENT_SECRET` — Provisioning app secret
+- `TENANT_DOMAIN` — `<tenant>.onmicrosoft.com`
+
+---
+
+## Microsoft Entra ID setup (Portal app)
 
 ### Step 1 — App Registration (Web)
 Microsoft Entra admin center → App registrations → New registration
 
 - Name: `HR IAM Portal - Web`
+- Supported account type: choose what fits your tenant
+- Redirect URI (Web):
+  - Local dev: `http://localhost:8000/auth/callback`
+  - Azure/Prod: `<YOUR_PUBLIC_URL>/auth/callback` (placeholder only)
 
-Redirect URIs:
-- Local dev: `http://localhost:8000/auth/callback`
-- Azure/Prod: `<YOUR_PUBLIC_URL>/auth/callback` (placeholder only)
-
-Record:
+Record these values:
 - Directory (tenant) ID → `TENANT_ID`
 - Application (client) ID → `CLIENT_ID`
 
 Create a client secret:
+- Certificates & secrets → New client secret
 - Secret value → `CLIENT_SECRET`
 
-### Step 2 — Enterprise Application roles
-Microsoft Entra admin center → Enterprise applications → select `HR IAM Portal - Web`
+### Step 2 — Define app roles (on the App Registration)
+Microsoft Entra admin center → App registrations → `HR IAM Portal - Web` → App roles
 
-Create these roles (value exactly as shown):
+Create these roles (Value exactly as shown):
 - `HR.Requester`
 - `HR.Approver`
 - `IT.Clearance`
 - `HR.Auditor` (optional)
+
+Tip:
+- Keep role values stable because your authorization logic expects these strings.
+
+### Step 3 — Assign app roles (via Enterprise Applications)
+Microsoft Entra admin center → Enterprise applications → select `HR IAM Portal - Web`
 
 Recommended:
 - Properties → Assignment required = Yes
@@ -123,23 +167,67 @@ Recommended:
 Assign roles:
 - Users and groups → Add user/group → select role
 
-### Step 3 — Microsoft Graph permissions
-Grant the Microsoft Graph permissions required by your workflow and click:
-- “Grant admin consent”
+### Step 4 — API permissions (Portal app)
+Microsoft Entra admin center → App registrations → `HR IAM Portal - Web` → API permissions
+
+- Add only the permissions the portal needs for sign-in and basic functionality.
+- Grant admin consent if required by your tenant policy.
 
 Note:
-- The exact permissions depend on what your provisioning/offboarding code does.
-- Document the final permissions you used in `docs/entra-graph-permissions.md` (recommended).
+- The portal app is for interactive sign-in. It should not require high-privilege Graph permissions for provisioning.
 
 ---
 
-## Azure deployment (Portal-only, enterprise design)
+## Microsoft Entra ID setup (Provisioning app for Graph automation)
+
+This is a separate app registration used for app-only token (client credential flow). It is responsible for:
+- Creating users (onboarding)
+- Disabling users + revoking sessions (offboarding)
+
+### Step 1 — App Registration (confidential client)
+Microsoft Entra admin center → App registrations → New registration
+
+- Name: `HR IAM Portal - Provisioning`
+
+Record:
+- Directory (tenant) ID → `PROV_TENANT_ID`
+- Application (client) ID → `PROV_CLIENT_ID`
+
+Create a client secret:
+- Secret value → `PROV_CLIENT_SECRET`
+
+Set:
+- `TENANT_DOMAIN` → `<tenant>.onmicrosoft.com`
+
+### Step 2 — Microsoft Graph application permissions
+Microsoft Entra admin center → App registrations → `HR IAM Portal - Provisioning` → API permissions
+
+Add **Application permissions** needed by your provisioning/offboarding logic, then:
+- Click “Grant admin consent”
+
+Important:
+- The exact permissions depend on what your code does.
+- Document your final permissions in: `docs/entra-graph-permissions.md`
+
+---
+
+## Health endpoint (required for load balancer probes)
+
+The app should expose a health endpoint used by ILB/App Gateway probes:
+
+- `GET /healthz` returns HTTP 200 when the node is ready to serve traffic
+
+---
+
+## Azure deployment (reference architecture)
+
+This is a generic enterprise-style reference architecture.
 
 Target design:
 - Public entry: Application Gateway (HTTPS)
 - Private backend: Internal Load Balancer (ILB)
-- Two Ubuntu VMs running the app on port 8000
-- Active/Passive (SQLite)
+- Two Ubuntu VMs running the app
+- Active/Passive while using SQLite
 
 ### Step 1 — Create Resource Group
 Azure Portal → Resource groups → Create
@@ -168,46 +256,46 @@ Azure Portal → NAT gateways → Create
 - Public IP: Create new
 - Subnet association: select `snet-app`
 
+Note:
+- NAT is for outbound only. Inbound traffic still comes through Application Gateway.
+
 ### Step 4 — Create Ubuntu VMs (no public IP)
 Azure Portal → Virtual machines → Create
 
 Create two VMs in `snet-app`:
-- VM-01: `<VM1_NAME>` (ACTIVE)
-- VM-02: `<VM2_NAME>` (PASSIVE standby)
+- VM-01: `<VM1_NAME>`
+- VM-02: `<VM2_NAME>`
 
 Recommended settings:
 - Image: Ubuntu LTS
 - Authentication: SSH public key
-- Public IP: **None**
-- NIC network security group (NSG): Basic is fine (adjust inbound rules below)
+- Public IP: None
 
 Connectivity:
 - Use Azure Bastion (recommended) or a jumpbox to SSH privately.
 
 ### Step 5 — NSG rules for the VM subnet
-You must allow backend traffic to port 8000 from inside your VNet.
+Allow backend traffic to the application port from inside your VNet.
 
 Azure Portal → Network security groups → select NSG attached to VM NICs or subnet
 
 Add inbound rule (example):
 - Source: VirtualNetwork
-- Source port ranges: *
-- Destination: Any
-- Destination port ranges: 8000
+- Destination port: 8000
 - Protocol: TCP
 - Action: Allow
 - Priority: 200
-- Name: `Allow-VNet-8000`
+- Name: `Allow-VNet-AppPort`
 
-(If you use Bastion, allow SSH only from Bastion service as needed.)
+(If you use Bastion, allow SSH only as needed for your access design.)
 
-### Step 6 — Deploy the app on each VM and run as systemd service
+### Step 6 — Deploy the app on each VM (systemd)
 On each VM:
 - Clone your repo
 - Create venv
 - Install requirements
-- Create `.env`
-- Start app as systemd service on port 8000
+- Create `.env` on the VM (do not copy your local `.env` to Git)
+- Run the app as a systemd service
 
 Service expectations:
 - Service name: `hr-iam-portal`
@@ -217,37 +305,34 @@ Service expectations:
 ### Step 7 — Create Internal Load Balancer (ILB)
 Azure Portal → Load balancers → Create
 
-- Type: **Internal**
+- Type: Internal
 - SKU: Standard
 - VNet: `<VNET_NAME>`
 - Subnet: `snet-app`
-- Frontend IP: `<ILB_FRONTEND_IP>` (dynamic or static)
 
 Backend pool:
 - Add VM NICs (VM-01 and VM-02)
 
 Health probe:
-- Name: `probe-8000-healthz`
+- Name: `probe-app-healthz`
 - Protocol: HTTP
 - Port: 8000
 - Path: `/healthz`
-- Interval/Threshold: keep defaults unless you have issues
 
 Load balancing rule:
-- Name: `rule-8000`
-- Frontend IP: ILB frontend
-- Protocol: TCP (or HTTP if supported in your design)
-- Port: 8000
+- Name: `rule-app`
+- Protocol: TCP
+- Frontend port: 8000
 - Backend port: 8000
 - Backend pool: your pool
-- Health probe: `probe-8000-healthz`
+- Health probe: `probe-app-healthz`
 
 ### Step 8 — Create Application Gateway (public entry)
 Azure Portal → Application gateways → Create
 
 Basics:
 - Name: `<APPGW_NAME>`
-- SKU: Standard_v2
+- SKU: Standard_v2 (or WAF_v2 if you enable WAF)
 - VNet: `<VNET_NAME>`
 - Subnet: `AppGatewaySubnet`
 
@@ -256,11 +341,11 @@ Frontend:
 
 Listener:
 - HTTPS listener (recommended)
-- Certificate: upload your cert (PFX) or use Key Vault integration if you prefer
-- Hostname: do not put your real domain in README (use placeholder `<YOUR_PUBLIC_URL>`)
+- Certificate: upload your cert (PFX) or integrate with Key Vault
+- Hostname: use placeholder `<YOUR_PUBLIC_URL>` in docs (do not include real domains)
 
 Backend settings:
-- Backend pool target: ILB private IP (or ILB frontend private IP)
+- Backend pool: ILB frontend private IP
 - Backend port: 8000
 - Health probe: HTTP port 8000 path `/healthz`
 - Timeout: increase if your app is slow to respond
@@ -270,7 +355,7 @@ Rules:
 
 ### Step 9 — Validate end-to-end
 Validation checklist:
-- App Gateway → Backend health shows **Healthy**
+- App Gateway → Backend health shows Healthy
 - `https://<YOUR_PUBLIC_URL>/healthz` returns 200
 - Login works
 - Create request → approve → execute works end-to-end
@@ -278,21 +363,17 @@ Validation checklist:
 ---
 
 ## SQLite note (active/passive)
+
 SQLite is a local file database. Because of that:
-- Run **active/passive** (only one VM serves traffic at a time for write operations)
-- The second VM is standby for failover
-- Real active/active is planned later when moving to Azure SQL
+- Treat the deployment as active/passive while SQLite is used
+- Do not run active/active writes across two nodes
 
-Operational tip:
-- Keep one VM as “ACTIVE” and confirm it is the only node receiving real workflow traffic.
-- Use the standby VM for failover testing only.
+Recommended operation in SQLite mode:
+- Keep only ONE VM in the active backend pool at a time
+- Use the second VM for failover testing or standby
 
----
-
-## Health check
-The app should expose a health endpoint used by ILB/App Gateway probes:
-
-- `/healthz` should return HTTP 200 when the node is ready to serve.
+Future improvement:
+- Move to a shared database (example: Azure SQL) to support true scale-out.
 
 ---
 
@@ -301,13 +382,15 @@ The app should expose a health endpoint used by ILB/App Gateway probes:
 ### Login fails or loops
 - Confirm the Redirect URI matches exactly:
   - Local: `http://localhost:8000/auth/callback`
-  - Prod: `<YOUR_PUBLIC_URL>/auth`
-- Confirm your user is assigned a role in the Enterprise Application.
+  - Prod: `<YOUR_PUBLIC_URL>/auth/callback`
+- Confirm your user is assigned a role in the Enterprise Application
+- Confirm your app roles values match the role checks used in the code
 
-### App Gateway returns 502
+### Application Gateway returns 502
 - Check Application Gateway → Backend health
 - Confirm ILB health probe path is correct (`/healthz`)
-- Confirm port 8000 is reachable from the network path (NSG rules)
+- Confirm the app is listening on the expected port
+- Confirm NSG rules allow the backend traffic inside the VNet
 
 On VM:
 ```bash
@@ -322,9 +405,16 @@ sudo journalctl -u hr-iam-portal -n 200 --no-pager
 - Never commit secrets (`.env`, tokens, client secrets)
 - Never commit databases (`*.db`)
 - Use placeholders in docs (`<YOUR_PUBLIC_URL>`) and avoid real domains
+- For production, use a secret store (example: Key Vault) and rotate secrets regularly
 
-
+---
 
 ## Documentation
-- `docs/runbook.md` — Operations + failover
-- `docs/screenshots/` — Azure + Entra proof
+- `docs/runbook.md` — operations + failover
+- `docs/screenshots/` — Azure + Entra screenshots (scrubbed / generic)
+- `docs/entra-graph-permissions.md` — Graph permissions used by your implementation
+
+---
+
+## License
+Add a license file before making the repo public (example: MIT).

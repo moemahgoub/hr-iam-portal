@@ -415,8 +415,10 @@ sudo journalctl -u hr-iam-portal -n 200 --no-pager
 
 ## Documentation
 - `docs/runbook.md` — operations + failover
-- `docs/screenshots/` — Azure + Entra screenshots + UI + Azure Architecture Diagram
-- `docs/entra-graph-permissions.md` — Graph permissions 
+- `docs/entra-graph-permissions.md` — Microsoft Graph permissions used by this project
+- `docs/screenshots/Entra/` — Entra configuration screenshots (scrubbed / generic)
+- `docs/screenshots/UI/` — UI screenshots
+- `docs/screenshots/Azure Architecture.png` — generic Azure reference architecture diagram
 
 ---
 
